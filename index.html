@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Find Sasquatch! A Raster Overlay Game</title>
+<style>
+  :root{
+    --bg:#f3f1ea; --card:#ffffff; --ink:#22281f; --muted:#5f6a5a; --line:#d9d5c7;
+    --forest:#2f5d3a; --forest2:#3f7a4c; --accent:#c8742c; --accent2:#a85a1c;
+    --good:#2e8b57; --bad:#b23a3a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.45}
+  header{background:var(--forest);color:#fff;padding:12px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  header h1{margin:0;font-size:22px;letter-spacing:.3px}
+  header .sub{opacity:.85;font-size:14px}
+  header .spacer{flex:1}
+  header .mapno{font-size:14px;display:flex;align-items:center;gap:6px}
+  header input{width:80px;padding:4px 6px;border-radius:6px;border:none;font:inherit}
+  button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:#fff;padding:6px 12px;color:var(--ink)}
+  button:hover{background:#f6f4ee}
+  button.primary{background:var(--accent);border-color:var(--accent2);color:#fff;font-weight:600}
+  button.primary:hover{background:var(--accent2)}
+  button.ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.5)}
+  button.ghost:hover{background:rgba(255,255,255,.12)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .layout{display:grid;grid-template-columns:290px minmax(420px,1fr) 360px;gap:14px;padding:14px;max-width:1500px;margin:0 auto}
+  .layout>*{min-width:0}
+  @media (max-width:1150px){.layout{grid-template-columns:1fr 1fr}.center{grid-column:1 / -1;order:-1}}
+  @media (max-width:720px){.layout{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+  .card h2{font-size:16px;margin:0 0 8px;color:var(--forest)}
+  .card h3{font-size:14px;margin:10px 0 4px}
+  .note{color:var(--muted);font-size:13px}
+  ol.guide{padding-left:0;margin:0;list-style:none}
+  ol.guide li{display:flex;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)}
+  ol.guide li:last-child{border-bottom:none}
+  ol.guide .ico{font-size:18px;width:24px;text-align:center;flex:none}
+  .layerbtns{display:flex;flex-direction:column;gap:6px}
+  .layerbtns button{text-align:left;display:flex;align-items:center;gap:8px}
+  .layerbtns button.active, .critlist .item.active{outline:2px solid var(--accent);background:#fff7ef}
+  .swatch{display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.2);flex:none}
+  .maphead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .maphead h2{margin:0}
+  #mapSub{color:var(--muted);font-size:13px}
+  .mapwrap{position:relative;margin-top:8px;display:flex;justify-content:center;overflow:hidden}
+  canvas#map{display:block;touch-action:manipulation}
+  canvas#map.search{cursor:crosshair}
+  #tip{position:absolute;pointer-events:none;background:rgba(30,35,28,.92);color:#fff;font-size:12px;padding:6px 8px;border-radius:6px;white-space:nowrap;display:none;z-index:5}
+  #legend{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;margin-top:8px;font-size:13px}
+  .gradbar{width:180px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.2)}
+  #readout{margin-top:8px;font-size:13px;color:var(--muted);text-align:center;min-height:20px}
+  label.row{display:flex;align-items:center;gap:6px;margin:4px 0;flex-wrap:wrap}
+  label.row b{white-space:nowrap}
+  select,input[type=number]{font:inherit;padding:4px 6px;border-radius:6px;border:1px solid var(--line);background:#fff}
+  input[type=number]{width:68px}
+  .step{border-left:3px solid var(--line);padding:2px 0 4px 10px;margin:8px 0}
+  .step .lbl{font-weight:600;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .count{font-size:13px;color:var(--muted);margin:6px 0}
+  .critlist{display:flex;flex-direction:column;gap:6px;margin:6px 0}
+  .critlist .item{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:5px 8px;cursor:pointer;font-size:14px}
+  .critlist .item .nm{flex:1}
+  .critlist .item .n{color:var(--muted);font-size:12px}
+  .critlist .item button{padding:0 7px;font-size:13px}
+  .empty{color:var(--muted);font-style:italic;font-size:13px}
+  .formula{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;background:#f6f4ee;border-radius:6px;padding:6px 8px;margin:6px 0;word-break:break-word}
+  .status{font-weight:600;margin:6px 0}
+  .status.good{color:var(--good)} .status.bad{color:var(--bad)}
+  .dots{font-size:20px;letter-spacing:3px}
+  .msg{font-size:14px;margin-top:8px;padding:8px;border-radius:8px;background:#f6f4ee}
+  .msg ul{margin:4px 0 0;padding-left:18px}
+  .codebox{margin-top:10px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fbfaf6}
+  .codebar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap}
+  .codebar .lbl{font-weight:600;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .codehead{font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:6px}
+  .codehead code{background:#efece2;padding:1px 5px;border-radius:4px;font-size:12px}
+  .critgroup{margin-top:10px;font-weight:600;font-size:14px;color:var(--forest)}
+  pre.code{margin:3px 0 2px;background:#1f2a1f;color:#e6f2dc;padding:8px 10px;border-radius:6px;font-size:12.5px;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  pre.code.plain{background:#efece2;color:var(--ink)}
+  button.copy{font-size:12px;padding:1px 8px}
+  .codenote{font-size:12px;color:var(--muted);margin-top:6px}
+  .predict{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px}
+  .predict textarea{width:100%;min-height:52px;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:6px;padding:6px;margin-top:6px}
+  canvas#map.predicting{cursor:copy}
+  details summary{cursor:pointer;font-weight:600;color:var(--forest)}
+  details p{margin:6px 0}
+  /* modal */
+  .modal{position:fixed;inset:0;background:rgba(20,25,18,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+  .modal.show{display:flex}
+  .modal .box{background:#fff;border-radius:16px;max-width:620px;width:100%;padding:20px 24px;max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+  .modal h2{margin-top:0;color:var(--forest)}
+  .win{text-align:center}
+  .squatchwrap{position:relative;height:250px;display:flex;justify-content:center;align-items:flex-end;margin-top:30px}
+  .squatch{width:190px;animation:popup .7s cubic-bezier(.2,1.6,.4,1) both}
+  @keyframes popup{0%{transform:translateY(120%) scale(.6);opacity:0}100%{transform:none;opacity:1}}
+  .wave{transform-origin:132px 122px;animation:wave .6s ease-in-out .7s 5 alternate}
+  @keyframes wave{from{transform:rotate(-12deg)}to{transform:rotate(14deg)}}
+  .bubble{position:absolute;top:-24px;left:calc(50% + 70px);background:#fff;border:3px solid var(--ink);border-radius:18px;padding:10px 16px;font-size:22px;font-weight:700;white-space:nowrap;animation:bub .4s ease-out .8s both}
+  .bubble:after{content:"";position:absolute;left:18px;bottom:-16px;border:9px solid transparent;border-top-color:var(--ink)}
+  @keyframes bub{from{transform:scale(0);opacity:0}to{transform:none;opacity:1}}
+  @media (max-width:560px){.bubble{left:50%;transform:translateX(-50%);top:-40px;font-size:18px}}
+  .summary{text-align:left;font-size:14px;background:#f6f4ee;border-radius:10px;padding:10px 14px;margin-top:14px}
+  .teacher{border:2px dashed var(--accent)}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:6px 0 20px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🔎 Find Sasquatch!</h1>
+  <span class="sub">A raster overlay game</span>
+  <span class="spacer"></span>
+  <span class="mapno">Forest #<input id="mapInput" type="number" min="1" max="999999"><button class="ghost" id="goMap">Go</button><button class="ghost" id="newMap">🎲 New forest</button><button class="ghost" id="helpBtn">❓ How to play</button></span>
+</header>
+
+<main class="layout">
+  <!-- LEFT -->
+  <section class="col left">
+    <div class="card">
+      <h2>📓 Sasquatch field guide</h2>
+      <p class="note" style="margin-top:0">Decades of blurry photos have taught us that a sasquatch's home cell is always…</p>
+      <ol class="guide" id="guideList"></ol>
+    </div>
+    <div class="card">
+      <h2>1. Explore the data</h2>
+      <p class="note" style="margin-top:0">Five rasters cover the same 120 m × 120 m patch of forest. Every cell is 5 m × 5 m (24 × 24 cells). Click a layer to view it; hover over the map to inspect cell values.</p>
+      <div class="layerbtns" id="layerBtns"></div>
+      <div class="predict">
+        <h3 style="margin-top:0">📍 Make a prediction</h3>
+        <p class="note" style="margin:0">Before you build a model, compare the rasters with the field guide. Which cell do you think the sasquatch lives in?</p>
+        <button id="predictBtn" style="margin-top:6px">📍 Pick a cell</button>
+        <div id="predictInfo" class="count"></div>
+        <textarea id="predictWhy" placeholder="Why there? (optional)"></textarea>
+      </div>
+    </div>
+    <div class="card">
+      <details>
+        <summary>Raster tools cheat sheet</summary>
+        <p><b>Reclassify:</b> turn a raster into a yes/no (1/0) layer, e.g. slope &gt; 20° becomes 1, everything else 0.</p>
+        <p><b>Proximity (buffer):</b> find every cell within (or farther than) some distance of the selected cells. Distances are measured between cell centers, so the next cell over is 5 m away and the diagonal neighbor is 7.1 m away.</p>
+        <p><b>Overlay, Multiply:</b> multiply your 1/0 layers together. A cell only stays 1 if it is 1 in <i>every</i> layer (a logical AND).</p>
+        <p><b>Overlay, Sum:</b> add your 1/0 layers. Each cell's value is the number of criteria it meets, which gives a likelihood score rather than a yes/no answer.</p>
+      </details>
+    </div>
+  </section>
+
+  <!-- CENTER -->
+  <section class="col center">
+    <div class="card">
+      <div class="maphead"><h2 id="mapTitle">Elevation</h2><span id="mapSub"></span></div>
+      <div class="mapwrap" id="mapwrap"><canvas id="map"></canvas><div id="tip"></div></div>
+      <div id="legend"></div>
+      <div id="readout">Hover over (or tap) a cell to inspect it.</div>
+    </div>
+    <div class="card" id="mapCode" style="display:none">
+      <div class="codebar"><h2 style="margin:0" id="mapCodeTitle">Code</h2><select class="langSel" aria-label="GIS software"><option value="arc">ArcGIS Pro</option><option value="qgis">QGIS</option><option value="py">Python</option><option value="r">R (terra)</option></select></div>
+      <div id="mapCodeBody"></div>
+    </div>
+  </section>
+
+  <!-- RIGHT -->
+  <section class="col right">
+    <div class="card">
+      <h2>2. Make criterion layers</h2>
+      <p class="note" style="margin-top:0">Turn each field-guide clue into a 1/0 raster (1 = sasquatch could be here).</p>
+      <div class="step"><div class="lbl">Input raster</div>
+        <select id="inLayer"></select>
+      </div>
+      <div class="step"><div class="lbl">Reclassify: which cells get a 1?</div>
+        <div id="condBox"></div>
+      </div>
+      <div class="step"><div class="lbl">Proximity (optional)</div>
+        <label class="row"><input type="radio" name="prox" value="none" checked> Keep those cells as they are</label>
+        <label class="row"><input type="radio" name="prox" value="within"> Cells <b>within</b> <input type="number" id="dWithin" value="5" min="0" step="1"> m of them</label>
+        <label class="row"><input type="radio" name="prox" value="beyond"> Cells <b>farther than</b> <input type="number" id="dBeyond" value="5" min="0" step="1"> m from them</label>
+      </div>
+      <div class="count" id="previewCount"></div>
+      <div class="codebox"><div class="codebar"><span class="lbl">Code</span><select class="langSel" aria-label="GIS software"><option value="arc">ArcGIS Pro</option><option value="qgis">QGIS</option><option value="py">Python</option><option value="r">R (terra)</option></select></div><div id="previewCode"></div></div>
+      <div style="height:10px"></div>
+      <div class="note" id="needPredict" style="color:var(--bad);margin-bottom:6px">Make your prediction (step 1) before you add layers to your model. You can still preview layers.</div>
+      <button class="primary" id="addCrit">➕ Add to model</button>
+    </div>
+
+    <div class="card">
+      <h2>3. Overlay your criteria</h2>
+      <div class="critlist" id="critList"></div>
+      <label class="row"><input type="radio" name="method" value="multiply" checked> <b>Multiply</b> (cell must meet ALL criteria)</label>
+      <label class="row"><input type="radio" name="method" value="sum"> <b>Sum</b> (count how many criteria each cell meets)</label>
+      <div class="formula" id="formula"></div>
+      <button id="viewResult">🗺️ View model result</button>
+      <div class="status" id="resultStatus"></div>
+    </div>
+
+    <div class="card">
+      <h2>4. Send a search party</h2>
+      <p class="note" style="margin-top:0">The sasquatch lives in exactly <b>one</b> cell. Your search party only has enough trail mix for 3 searches, so build a good model first.</p>
+      <div>Searches left: <span class="dots" id="dots"></span></div>
+      <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+        <button class="primary" id="searchBtn">🔦 Search a cell</button>
+        <button id="refill" style="display:none">🎒 Send a new search party</button>
+      </div>
+      <div class="msg" id="searchMsg" style="display:none"></div>
+    </div>
+
+    <div class="card teacher" id="teacherCard" style="display:none">
+      <h2>🍎 Instructor mode</h2>
+      <p class="note" id="teacherInfo"></p>
+      <button id="loadSolution">Load solution model</button>
+    </div>
+  </section>
+</main>
+<footer>Find Sasquatch! · Map data are randomly generated for each forest number · Share a forest number so everyone works on the same map, or let everyone get their own.</footer>
+
+<!-- Intro modal -->
+<div class="modal" id="introModal"><div class="box">
+  <h2>🌲 There's a sasquatch in these woods</h2>
+  <p>Hikers keep reporting a large, hairy, surprisingly polite creature in this patch of forest. Your job is to find exactly where it lives.</p>
+  <p>You have five raster datasets (elevation, slope, land cover, streams, and hiking trails) and a field guide of sasquatch habits. Turn each habit into a 1/0 <b>criterion layer</b>, then <b>overlay</b> them to narrow 576 cells down to one.</p>
+  <ol>
+    <li><b>Explore</b> the five rasters. Hover over cells to see their values.</li>
+    <li><b>Predict</b> which cell the sasquatch lives in, before you build a model.</li>
+    <li><b>Reclassify</b> each raster (and buffer it when needed) to match a field-guide clue.</li>
+    <li><b>Overlay</b> your criterion layers.</li>
+    <li><b>Search</b> the cell your model points to. You only get 3 searches!</li>
+  </ol>
+  <p class="note">Tip: some clues need two steps, for example first selecting rock outcrops and then finding cells within 10 m of them.</p>
+  <div style="text-align:right"><button class="primary" id="startBtn">Let's go squatchin'</button></div>
+</div></div>
+
+<!-- Out of searches modal -->
+<div class="modal" id="outModal"><div class="box">
+  <h2>🥾 Out of trail mix</h2>
+  <p>Your search party has gone home hungry, and the sasquatch is still out there. Look at the clues your search party sent back, check your criterion layers against the field guide, and try again.</p>
+  <div style="text-align:right"><button class="primary" id="outOk">Back to the model</button></div>
+</div></div>
+
+<!-- Win modal -->
+<div class="modal" id="winModal"><div class="box win">
+  <div class="squatchwrap">
+    <div class="bubble">Oh, hi, What's up</div>
+    <svg class="squatch" viewBox="0 0 200 240" aria-label="A friendly sasquatch waving">
+      <rect x="66" y="196" width="26" height="40" rx="11" fill="#55361b"/>
+      <rect x="108" y="196" width="26" height="40" rx="11" fill="#55361b"/>
+      <ellipse cx="79" cy="235" rx="18" ry="6" fill="#3e2712"/>
+      <ellipse cx="121" cy="235" rx="18" ry="6" fill="#3e2712"/>
+      <path d="M58 212 Q46 150 68 118 Q100 96 132 118 Q154 150 142 212 Z" fill="#6b4423"/>
+      <path d="M78 150 Q100 140 122 150 Q120 185 100 192 Q80 185 78 150Z" fill="#7d5330"/>
+      <path d="M70 126 Q40 160 50 200" stroke="#5e3b1d" stroke-width="20" fill="none" stroke-linecap="round"/>
+      <g class="wave">
+        <path d="M130 124 Q164 104 168 62" stroke="#5e3b1d" stroke-width="20" fill="none" stroke-linecap="round"/>
+        <circle cx="168" cy="56" r="13" fill="#5e3b1d"/>
+        <path d="M160 46 l-3 -8 M168 43 l0 -9 M176 46 l3 -8" stroke="#5e3b1d" stroke-width="5" stroke-linecap="round"/>
+      </g>
+      <ellipse cx="100" cy="78" rx="36" ry="40" fill="#6b4423"/>
+      <path d="M72 50 l-6 -10 M86 42 l-2 -11 M100 40 l0 -11 M114 42 l2 -11 M128 50 l6 -10" stroke="#6b4423" stroke-width="6" stroke-linecap="round"/>
+      <ellipse cx="100" cy="90" rx="23" ry="23" fill="#c49a6c"/>
+      <path d="M78 78 Q100 68 122 78" stroke="#3d2614" stroke-width="6" fill="none" stroke-linecap="round"/>
+      <circle cx="91" cy="86" r="4" fill="#1d1d1d"/><circle cx="109" cy="86" r="4" fill="#1d1d1d"/>
+      <circle cx="92.3" cy="84.6" r="1.3" fill="#fff"/><circle cx="110.3" cy="84.6" r="1.3" fill="#fff"/>
+      <ellipse cx="100" cy="97" rx="6" ry="3.5" fill="#7a4d2e"/>
+      <path d="M89 104 Q100 113 111 104" stroke="#3d2614" stroke-width="3" fill="none" stroke-linecap="round"/>
+    </svg>
+  </div>
+  <h2 style="margin-top:12px">You found the sasquatch! 🎉</h2>
+  <div class="summary" id="winSummary"></div>
+  <p class="note">Take a screenshot of this box to show your work.</p>
+  <div><button class="primary" id="winOk">Close</button></div>
+</div></div>
+
+<script id="world-gen">
+/* =========================================================
+   WORLD GENERATION (deterministic from a forest number)
+   ========================================================= */
+const N = 24, CELL = 5, NC = N * N;
+const COLS = 'ABCDEFGHIJKLMNOPQRSTUVWX';
+const LC = [
+  { name: 'Forest',       color: '#2f6b3a' },
+  { name: 'Meadow',       color: '#c5dc86' },
+  { name: 'Farmland',     color: '#e6cf7a' },
+  { name: 'Rock outcrop', color: '#8e8e8e' },
+  { name: 'Clearcut',     color: '#c08562' }
+];
+const FOREST = 0, MEADOW = 1, FARM = 2, ROCK = 3, CUT = 4;
+const NB8 = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+const NB4 = [[-1,0],[1,0],[0,-1],[0,1]];
+
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+const rc = i => [Math.floor(i / N), i % N];
+const inside = (r, c) => r >= 0 && c >= 0 && r < N && c < N;
+const cellName = i => COLS[i % N] + (Math.floor(i / N) + 1);
+const round1 = v => Math.round(v * 10) / 10;
+
+/* Euclidean distance (m, between cell centres) from every cell to the nearest selected cell */
+function distanceFrom(mask){
+  const pr = [], pc = [];
+  for (let i = 0; i < NC; i++) if (mask[i]){ pr.push(Math.floor(i / N)); pc.push(i % N); }
+  const out = new Float64Array(NC), np = pr.length;
+  for (let r = 0, i = 0; r < N; r++) for (let c = 0; c < N; c++, i++){
+    let best = Infinity;
+    for (let k = 0; k < np; k++){ const dr = pr[k] - r, dc = pc[k] - c, d = dr*dr + dc*dc; if (d < best) best = d; }
+    out[i] = best === Infinity ? Infinity : Math.sqrt(best) * CELL;
+  }
+  return out;
+}
+
+function slopeFrom(elev, k){
+  const s = new Float64Array(NC);
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++){
+    const c0 = Math.max(c-1,0), c1 = Math.min(c+1,N-1), r0 = Math.max(r-1,0), r1 = Math.min(r+1,N-1);
+    const dzdx = k * (elev[r*N+c1] - elev[r*N+c0]) / ((c1-c0) * CELL);
+    const dzdy = k * (elev[r1*N+c] - elev[r0*N+c]) / ((r1-r0) * CELL);
+    s[r*N+c] = Math.atan(Math.hypot(dzdx, dzdy)) * 180 / Math.PI;
+  }
+  return s;
+}
+
+function tryWorld(seed){
+  const R = mulberry32(seed);
+  const pick = arr => arr[Math.floor(R() * arr.length)];
+  const defs = pickRuleDefs(R, pick);
+
+  /* --- terrain: sum of gaussian hills + tilt --- */
+  const z = new Float64Array(NC);
+  const bumps = [];
+  const nb = 4 + Math.floor(R() * 3);
+  for (let k = 0; k < nb; k++) bumps.push({ r: R()*N, c: R()*N, a: (R() < 0.8 ? 1 : -0.6) * (0.5 + R()*0.8), s: 2.5 + R()*5 });
+  const tr = (R()-0.5)*0.08, tc = (R()-0.5)*0.08;
+  for (let i = 0; i < NC; i++){
+    const [r, c] = rc(i); let v = tr*r + tc*c;
+    for (const b of bumps) v += b.a * Math.exp(-((r-b.r)**2 + (c-b.c)**2) / (2*b.s*b.s));
+    z[i] = v;
+  }
+  let zmin = Infinity, zmax = -Infinity;
+  for (const v of z){ zmin = Math.min(zmin, v); zmax = Math.max(zmax, v); }
+  for (let i = 0; i < NC; i++) z[i] = (z[i]-zmin) / (zmax-zmin);
+
+  // choose vertical relief so ~38% of cells meet the slope clue
+  // slope scales with relief k as atan(k*g), so k comes straight from a percentile of g
+  const g = Array.from(slopeFrom(z, 1), v => Math.tan(v * Math.PI / 180)).sort((a,b) => a-b);
+  const sX = defs.slope.spec.val, steep = defs.slope.spec.op === '>';
+  const relief = Math.tan(sX * Math.PI / 180) / g[Math.floor(NC * (steep ? 0.62 : 0.38))];
+  const base = 450 + Math.round(R()*300);
+  const elev = new Float64Array(NC);
+  for (let i = 0; i < NC; i++) elev[i] = round1(base + relief * z[i]);
+  const slopeRaw = slopeFrom(elev, 1);
+  const slope = new Float64Array(NC);
+  for (let i = 0; i < NC; i++) slope[i] = round1(slopeRaw[i]);
+
+  /* --- streams: follow steepest descent from two high sources --- */
+  const stream = new Uint8Array(NC);
+  for (let s = 0; s < 2; s++){
+    const cands = [];
+    for (let i = 0; i < NC; i++){ const [r,c] = rc(i); if (z[i] > 0.55 && r > 2 && c > 2 && r < N-3 && c < N-3 && !stream[i]) cands.push(i); }
+    if (!cands.length) return null;
+    let cur = pick(cands); stream[cur] = 1;
+    const vis = new Set([cur]);
+    for (let step = 0; step < 70; step++){
+      const [r, c] = rc(cur);
+      if (r === 0 || c === 0 || r === N-1 || c === N-1) break;
+      let best = -1, bz = Infinity;
+      for (const [dr, dc] of NB8){ const ni = (r+dr)*N + (c+dc); if (vis.has(ni)) continue; if (elev[ni] < bz){ bz = elev[ni]; best = ni; } }
+      if (best < 0) break;
+      const [br, bc] = rc(best);
+      if (br !== r && bc !== c){ const a = r*N+bc, b = br*N+c; const conn = elev[a] < elev[b] ? a : b; stream[conn] = 1; vis.add(conn); }
+      const joined = stream[best] === 1;
+      stream[best] = 1; vis.add(best); cur = best;
+      if (joined) break;
+    }
+  }
+  let ns = 0; for (const v of stream) ns += v;
+  if (ns < 18 || ns > 110) return null;
+
+  /* --- hiking trail: wandering edge-to-edge path --- */
+  const trail = new Uint8Array(NC);
+  const horiz = R() < 0.5;
+  const along = [0, Math.floor(N/3), Math.floor(2*N/3), N-1];
+  const pts = along.map(a => { const o = 2 + Math.floor(R()*(N-4)); return horiz ? [o, a] : [a, o]; });
+  for (let k = 0; k < pts.length-1; k++){
+    let [r, c] = pts[k]; const [tr2, tc2] = pts[k+1];
+    trail[r*N+c] = 1;
+    while (r !== tr2 || c !== tc2){
+      const dr = tr2 - r, dc = tc2 - c;
+      if (dr !== 0 && (dc === 0 || (Math.abs(dr) > Math.abs(dc) ? R() < 0.75 : R() < 0.25))) r += Math.sign(dr); else c += Math.sign(dc);
+      trail[r*N+c] = 1;
+    }
+  }
+
+  /* --- land cover --- */
+  const lc = new Uint8Array(NC); // all forest
+  // farmland: 4x4 fields in low, gentle ground
+  for (let br = 0; br < N; br += 4) for (let bc = 0; bc < N; bc += 4){
+    let n = 0;
+    for (let r = br; r < br+4; r++) for (let c = bc; c < bc+4; c++){ const i = r*N+c; if (slope[i] < 16 && z[i] < 0.4) n++; }
+    if (n >= 10) for (let r = br; r < br+4; r++) for (let c = bc; c < bc+4; c++) lc[r*N+c] = FARM;
+  }
+  // meadows: a couple of random blobs
+  for (let m = 0; m < 2; m++){
+    const forestCells = []; for (let i = 0; i < NC; i++) if (lc[i] === FOREST && !stream[i]) forestCells.push(i);
+    let blob = [pick(forestCells)]; lc[blob[0]] = MEADOW;
+    const size = 5 + Math.floor(R()*8);
+    for (let g = 0; g < 60 && blob.length < size; g++){
+      const [r, c] = rc(pick(blob)); const [dr, dc] = pick(NB4);
+      if (!inside(r+dr, c+dc)) continue; const ni = (r+dr)*N + c+dc;
+      if (lc[ni] === FOREST && !stream[ni]){ lc[ni] = MEADOW; blob.push(ni); }
+    }
+  }
+  // rock outcrops: small clusters on steep, high ground
+  const rockCands = [];
+  for (let i = 0; i < NC; i++) if (slope[i] > 30 && z[i] > 0.35 && !stream[i] && lc[i] === FOREST) rockCands.push(i);
+  const seeds = [];
+  for (let t = 0; t < 60 && seeds.length < 6 && rockCands.length; t++){
+    const s = pick(rockCands); const [sr, sc] = rc(s);
+    if (seeds.every(q => { const [qr, qc] = rc(q); return Math.hypot(qr-sr, qc-sc) > 4; })) seeds.push(s);
+  }
+  if (seeds.length < 2) return null;
+  for (const s of seeds){
+    const blob = [s]; lc[s] = ROCK; const size = 2 + Math.floor(R()*4);
+    for (let g = 0; g < 30 && blob.length < size; g++){
+      const [r, c] = rc(pick(blob)); const [dr, dc] = pick(NB4);
+      if (!inside(r+dr, c+dc)) continue; const ni = (r+dr)*N + c+dc;
+      if (lc[ni] === FOREST && !stream[ni] && slope[ni] > 22){ lc[ni] = ROCK; blob.push(ni); }
+    }
+  }
+
+  /* --- habitat rules --- */
+  const w = { elev, slope, lc, stream, trail };
+  // logging: convert ~30% of otherwise-ideal cells to a land cover the squatch won't use, so the cover clue matters
+  const pre = [defs.stream, defs.lcp, defs.slope, defs.trail].map(d => evalSpec(d.spec, w));
+  const allowed = defs.cover.spec.classes, protect = defs.lcp.spec.classes;
+  const C4 = [];
+  for (let i = 0; i < NC; i++) if (pre.every(m => m[i]) && allowed.includes(lc[i]) && !protect.includes(lc[i])) C4.push(i);
+  if (C4.length < 4) return null;
+  const conv = pick(defs.cover.conv.filter(k => !protect.includes(k)));
+  const nCuts = Math.max(1, Math.round(C4.length * 0.3));
+  for (let k = 0; k < nCuts; k++){
+    const s0 = pick(C4); if (!allowed.includes(lc[s0])) continue;
+    const blob = [s0]; lc[s0] = conv; const size = 2 + Math.floor(R()*4);
+    for (let g = 0; g < 30 && blob.length < size; g++){
+      const [r, c] = rc(pick(blob)); const [dr, dc] = pick(NB4);
+      if (!inside(r+dr, c+dc)) continue; const ni = (r+dr)*N + c+dc;
+      if (allowed.includes(lc[ni]) && !protect.includes(lc[ni]) && !stream[ni]){ lc[ni] = conv; blob.push(ni); }
+    }
+  }
+  const rules = [defs.stream, defs.cover, defs.lcp, defs.slope, defs.trail].map(d => makeRule(d, w));
+  const S5 = [];
+  for (let i = 0; i < NC; i++) if (rules.every(r => r.test(i))) S5.push(i);
+  if (S5.length < 3) return null;
+
+  // elevation rule picks out exactly one of the remaining candidates
+  const below = R() < 0.5;
+  const es = S5.map(i => elev[i]).sort((a,b) => a-b);
+  let X = null;
+  for (const step of [10, 5, 2, 1]){
+    if (below){ const x = Math.floor(es[0]/step)*step + step; if (x > es[0] && x <= es[1]) { X = x; break; } }
+    else { const x = Math.ceil(es[es.length-1]/step)*step - step; if (x < es[es.length-1] && x >= es[es.length-2]) { X = x; break; } }
+  }
+  if (X === null) return null;
+  rules.push(makeRule(below
+    ? { spec:{ layer:'elev', op:'<', val:X, prox:'none' }, ico:'🌡️', text:`<b>Below ${X} m elevation.</b> ${pick(['Finds the high ground too chilly.', 'Gets altitude sickness.'])}` }
+    : { spec:{ layer:'elev', op:'>', val:X, prox:'none' }, ico:'🌡️', text:`<b>Above ${X} m elevation.</b> ${pick(['Avoids the muggy low ground.', 'Likes to keep an eye on the valley below.'])}` }, w));
+
+  const all = []; for (let i = 0; i < NC; i++) if (rules.every(r => r.test(i))) all.push(i);
+  if (all.length !== 1) return null;
+  // every rule must matter: dropping any one leaves >= 2 candidates
+  for (let k = 0; k < rules.length; k++){
+    let n = 0; for (let i = 0; i < NC; i++) if (rules.every((r, j) => j === k || r.test(i))) n++;
+    if (n < 2) return null;
+  }
+  return { ...w, rules, squatch: all[0] };
+}
+
+/* ---------- rule pools: each forest draws its own field guide ---------- */
+const KIND = { elev:'cont', slope:'cont', lc:'cat', stream:'feat', trail:'feat' };
+function pickRuleDefs(R, pick){
+  const sD = pick([5, 10, 15]);
+  const stream = { spec:{ layer:'stream', prox:'within', dist:sD }, noun:'stream', ico:'💧',
+    text:`<b>Within ${sD} m of a stream.</b> ${pick(['Drinks and fishes daily.', 'Catches crayfish for breakfast.', 'Needs a daily bath (you can smell it).'])}` };
+  const cv = pick([
+    { classes:[FOREST], ico:'🌲', text:'<b>In forest.</b> Needs cover from squatch hunters.', conv:[CUT] },
+    { classes:[FOREST, CUT], ico:'🫐', text:'<b>In forest or clearcut.</b> Hides in the trees but loves the berry bushes in clearcuts.', conv:[MEADOW, FARM] },
+    { classes:[FOREST, MEADOW], ico:'🌼', text:'<b>In forest or meadow.</b> Likes trees and wildflowers equally.', conv:[CUT] }]);
+  const cover = { spec:{ layer:'lc', classes:cv.classes, prox:'none' }, ico:cv.ico, text:cv.text, conv:cv.conv };
+  const lp = pick([
+    { cls:ROCK,   prox:'within', dists:[10, 15],     ico:'🪨', noun:'a rock outcrop', why:'Loves sweet views and scouting for snacks.' },
+    { cls:ROCK,   prox:'beyond', dists:[10, 15],     ico:'⚠️', noun:'a rock outcrop', why:'Got bonked by a falling rock once.' },
+    { cls:MEADOW, prox:'within', dists:[10, 15, 20], ico:'☀️', noun:'a meadow',       why:'Naps in sunny meadows.' },
+    { cls:FARM,   prox:'within', dists:[15, 20, 25], ico:'🌽', noun:'farmland',       why:'Raids the corn at night.' },
+    { cls:FARM,   prox:'beyond', dists:[15, 20, 25], ico:'🐕', noun:'farmland',       why:'Terrified of farm dogs.' }]);
+  const lD = pick(lp.dists);
+  const lcp = { spec:{ layer:'lc', classes:[lp.cls], prox:lp.prox, dist:lD }, noun:lp.noun, ico:lp.ico,
+    text:`<b>${lp.prox === 'within' ? `Within ${lD} m of` : `More than ${lD} m from`} ${lp.noun}.</b> ${lp.why}` };
+  let slope;
+  if (R() < 0.7){ const x = pick([25, 30, 35]);
+    slope = { spec:{ layer:'slope', op:'>', val:x, prox:'none' }, ico:'⛰️', text:`<b>On slopes steeper than ${x}°.</b> Can scamper away fast if startled.` }; }
+  else { const x = pick([15, 20]);
+    slope = { spec:{ layer:'slope', op:'<', val:x, prox:'none' }, ico:'🦵', text:`<b>On slopes gentler than ${x}°.</b> Has bad knees.` }; }
+  let trail;
+  if (R() < 0.65){ const d = pick([10, 15, 20]);
+    trail = { spec:{ layer:'trail', prox:'beyond', dist:d }, noun:'a hiking trail', ico:'🥾', text:`<b>More than ${d} m from a hiking trail.</b> Cannot stand hikers.` }; }
+  else { const d = pick([10, 15]);
+    trail = { spec:{ layer:'trail', prox:'within', dist:d }, noun:'a hiking trail', ico:'🍫', text:`<b>Within ${d} m of a hiking trail.</b> Steals granola bars from hikers' packs.` }; }
+  return { stream, cover, lcp, slope, trail };
+}
+/* 1/0 mask of the cells a spec selects, before any proximity step */
+function selectMask(spec, w){
+  const sel = new Uint8Array(NC), kind = KIND[spec.layer];
+  for (let i = 0; i < NC; i++){
+    if (kind === 'cont'){ const v = w[spec.layer][i], x = spec.val, op = spec.op;
+      sel[i] = (op === '>' ? v > x : op === '>=' ? v >= x : op === '<' ? v < x : v <= x) ? 1 : 0; }
+    else if (kind === 'cat') sel[i] = spec.classes.includes(w.lc[i]) ? 1 : 0;
+    else sel[i] = w[spec.layer][i];
+  }
+  return sel;
+}
+function evalSpec(spec, w){
+  const sel = selectMask(spec, w);
+  if (spec.prox === 'none') return sel;
+  const d = distanceFrom(sel), out = new Uint8Array(NC);
+  for (let i = 0; i < NC; i++) out[i] = spec.prox === 'within' ? (d[i] <= spec.dist ? 1 : 0) : (d[i] > spec.dist ? 1 : 0);
+  return out;
+}
+function makeRule(def, w){
+  const mask = evalSpec(def.spec, w), sp = def.spec;
+  const fmt = v => v === Infinity ? '∞' : (Math.round(v*10)/10).toString();
+  let fail;
+  if (sp.prox !== 'none'){
+    const d = distanceFrom(selectMask(sp, w));
+    fail = sp.prox === 'within' ? i => `nearest ${def.noun.replace(/^an? /, '')} is ${fmt(d[i])} m away` : i => `only ${fmt(d[i])} m from ${def.noun}`;
+  } else if (sp.layer === 'lc') fail = i => `land cover is ${LC[w.lc[i]].name.toLowerCase()}`;
+  else if (sp.layer === 'slope') fail = i => `slope is ${w.slope[i]}°`;
+  else fail = i => `elevation is ${w.elev[i]} m`;
+  return { spec: sp, ico: def.ico, text: def.text, test: i => mask[i] === 1, fail };
+}
+
+function buildWorld(mapNo){
+  for (let a = 0; a < 2000; a++){
+    const w = tryWorld((mapNo * 1000003 + a * 7919) >>> 0);
+    if (w) return w;
+  }
+  return null;
+}
+</script>
+
+<script>
+/* =========================================================
+   GAME UI
+   ========================================================= */
+let W = null;
+const state = { view: { type:'raw', key:'elev' }, crits: [], nextId: 1, method: 'multiply',
+                searchesLeft: 3, searchesUsed: 0, searched: [], searchMode: false, found: false, hover: -1, lang: 'arc', predict: -1, predictMode: false };
+try { const l = localStorage.getItem('squatchLang'); if (['arc','qgis','py','r'].includes(l)) state.lang = l; } catch (e) {}
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const TEACHER = params.has('teacher');
+
+/* ---------- colour helpers ---------- */
+function hex2rgb(h){ h = h.replace('#',''); return [0,2,4].map(k => parseInt(h.substr(k,2),16)); }
+function ramp(stops){ // stops: [[t,hex],...]
+  const s = stops.map(([t,h]) => [t, hex2rgb(h)]);
+  return t => { t = Math.max(0, Math.min(1, t));
+    for (let k = 1; k < s.length; k++) if (t <= s[k][0]){ const [t0,a] = s[k-1], [t1,b] = s[k]; const f = (t-t0)/(t1-t0||1);
+      return `rgb(${a.map((v,j) => Math.round(v + (b[j]-v)*f)).join(',')})`; }
+    return `rgb(${s[s.length-1][1].join(',')})`; };
+}
+const elevRamp = ramp([[0,'#3d7a4f'],[0.3,'#9cc47a'],[0.55,'#e8d991'],[0.8,'#b5835a'],[1,'#f2ede4']]);
+const slopeRamp = ramp([[0,'#fff8d6'],[0.35,'#fdc46a'],[0.6,'#ec6a3c'],[1,'#7a0d0d']]);
+const sumRamp = ramp([[0,'#f2f0f7'],[0.5,'#9e9ac8'],[1,'#3f007d']]);
+const gradCss = (fn) => `linear-gradient(to right, ${[0,.25,.5,.75,1].map(fn).join(',')})`;
+const BIN = ['#eceff1', '#2e8b57'];
+const EMPTY = '#f4f6f8';
+
+/* ---------- raw layers ---------- */
+const RAW = {
+  elev:   { name:'Elevation',     ico:'🏔️', kind:'cont', unit:'m' },
+  slope:  { name:'Slope',         ico:'📐', kind:'cont', unit:'°' },
+  lc:     { name:'Land cover',    ico:'🌲', kind:'cat' },
+  stream: { name:'Streams',       ico:'💧', kind:'feat', color:'#2b7bd6', label:'Stream' },
+  trail:  { name:'Hiking trails', ico:'🥾', kind:'feat', color:'#8a4b17', label:'Trail' }
+};
+function range(arr){ let a = Infinity, b = -Infinity; for (const v of arr){ a = Math.min(a,v); b = Math.max(b,v); } return [a,b]; }
+
+/* ---------- criteria ---------- */
+function cmp(v, op, x){ return op === '>' ? v > x : op === '>=' ? v >= x : op === '<' ? v < x : v <= x; }
+const opTxt = { '>':'>', '>=':'≥', '<':'<', '<=':'≤' };
+function computeCrit(spec){ return evalSpec(spec, W); }
+function critName(spec){
+  const L = RAW[spec.layer]; let base;
+  if (L.kind === 'cont') base = `${L.name} ${opTxt[spec.op]} ${spec.val}${L.unit === '°' ? '°' : ' ' + L.unit}`;
+  else if (L.kind === 'cat') base = spec.classes.length ? spec.classes.map(k => LC[k].name).join(' or ') : '(no classes)';
+  else base = L.name;
+  if (spec.prox === 'within') return `Within ${spec.dist} m of ${base}`;
+  if (spec.prox === 'beyond') return `Farther than ${spec.dist} m from ${base}`;
+  return base;
+}
+function critVar(spec){ // short variable-ish name for the formula
+  return critName(spec).replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'');
+}
+function readSpec(){
+  const layer = $('inLayer').value, L = RAW[layer];
+  const spec = { layer, prox: document.querySelector('input[name=prox]:checked').value };
+  if (L.kind === 'cont'){ spec.op = $('condOp').value; spec.val = parseFloat($('condVal').value); if (isNaN(spec.val)) spec.val = 0; }
+  if (L.kind === 'cat') spec.classes = [...document.querySelectorAll('.lcClass:checked')].map(e => +e.value);
+  spec.dist = parseFloat(spec.prox === 'within' ? $('dWithin').value : $('dBeyond').value); if (isNaN(spec.dist)) spec.dist = 0;
+  return spec;
+}
+
+/* ---------- Raster Calculator code ---------- */
+const RNAME = { elev:'Elevation', slope:'Slope', lc:'LandCover', stream:'Streams', trail:'Trails' };
+const LANGNAME = { arc:'ArcGIS Pro', qgis:'QGIS', py:'Python', r:'R' };
+const OPWORD = { '>':'gt', '>=':'ge', '<':'lt', '<=':'le' };
+const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function outName(spec){
+  const L = RAW[spec.layer]; let b;
+  if (L.kind === 'cont') b = `${RNAME[spec.layer].toLowerCase()}_${OPWORD[spec.op]}_${spec.val}`;
+  else if (L.kind === 'cat') b = spec.classes.length ? spec.classes.map(k => LC[k].name.split(' ')[0].toLowerCase()).join('_or_') : 'landcover';
+  else b = RNAME[spec.layer].toLowerCase();
+  if (spec.prox === 'within') b += `_within_${spec.dist}m`;
+  if (spec.prox === 'beyond') b += `_beyond_${spec.dist}m`;
+  return b.replace(/-/g,'neg').replace(/\./g,'p');
+}
+function uniqueOut(base){
+  let name = base, k = 2;
+  while (state.crits.some(c => c.out === name)) name = `${base}_${k++}`;
+  return name;
+}
+function selExpr(spec, lang){
+  const L = RAW[spec.layer];
+  if (lang === 'py' || lang === 'r'){
+    const v = RNAME[spec.layer];
+    if (L.kind === 'cont') return `${v} ${spec.op} ${spec.val}`;
+    if (L.kind === 'cat'){
+      if (!spec.classes.length) return `${v} == ?`;
+      if (spec.classes.length === 1) return `${v} == ${spec.classes[0]+1}`;
+      return lang === 'py' ? `np.isin(${v}, [${spec.classes.map(k => k+1).join(', ')}])`
+                           : spec.classes.map(k => `(${v} == ${k+1})`).join(' | ');
+    }
+    return `${v} == 1`;
+  }
+  const ref = lang === 'arc' ? `"${RNAME[spec.layer]}"` : `"${RNAME[spec.layer]}@1"`;
+  const eq = lang === 'arc' ? '==' : '=';
+  if (L.kind === 'cont') return `${ref} ${spec.op} ${spec.val}`;
+  if (L.kind === 'cat'){
+    const parts = spec.classes.map(k => `${ref} ${eq} ${k+1}`);
+    if (!parts.length) return `${ref} ${eq} ?`;
+    return parts.length === 1 ? parts[0] : parts.map(p => `(${p})`).join(lang === 'arc' ? ' | ' : ' OR ');
+  }
+  return `${ref} ${eq} 1`;
+}
+/* returns the tool runs that build one criterion layer: [{tool, expr, out, plain}] */
+function critSteps(spec, out, lang){
+  const sel = selExpr(spec, lang), cmpOp = spec.prox === 'within' ? '<=' : '>';
+  if (lang === 'py'){
+    if (spec.prox === 'none') return [{ tool:'Python', expr:`${out} = np.where(${sel}, 1, 0)`, out }];
+    return [{ tool:'Python', out, expr:`${out} = np.where(distance_transform_edt(~(${sel}), sampling=CELL) ${cmpOp} ${spec.dist}, 1, 0)` }];
+  }
+  if (lang === 'r'){
+    if (spec.prox === 'none') return [{ tool:'R', expr:`${out} <- ifel(${sel}, 1, 0)`, out }];
+    return [{ tool:'R', out, expr:`${out} <- ifel(distance(ifel(${sel}, 1, NA)) ${cmpOp} ${spec.dist}, 1, 0)` }];
+  }
+  if (lang === 'arc'){
+    if (spec.prox === 'none') return [{ tool:'Raster Calculator', expr:`Con(${sel}, 1, 0)`, out }];
+    return [{ tool:'Raster Calculator', expr:`Con(EucDistance(Con(${sel}, 1)) ${cmpOp} ${spec.dist}, 1, 0)`, out }];
+  }
+  if (spec.prox === 'none') return [{ tool:'Raster Calculator', expr: sel, out }];
+  const steps = []; let src = RNAME[spec.layer];
+  if (RAW[spec.layer].kind !== 'feat'){ src = out + '_cells'; steps.push({ tool:'Raster Calculator', expr: sel, out: src }); }
+  steps.push({ tool:'Proximity (Raster Distance)', plain:true, out: src + '_dist',
+    expr:`Input layer: ${src}\nA list of pixel values to consider target pixels: 1\nDistance units: Georeferenced coordinates` });
+  steps.push({ tool:'Raster Calculator', expr:`"${src}_dist@1" ${cmpOp} ${spec.dist}`, out });
+  return steps;
+}
+function stepsHtml(steps, copy = true){
+  return steps.map((s, k) => `<div class="codehead"><span>${steps.length > 1 ? `Step ${k+1}: ` : ''}<b>${s.tool}</b> → <code>${esc(s.out)}</code></span>` +
+    (copy && !s.plain ? `<button class="copy" data-code="${esc(s.expr)}">Copy</button>` : '') + `</div><pre class="code${s.plain ? ' plain' : ''}">${esc(s.expr)}</pre>`).join('');
+}
+const SETUP = {
+  py: `import numpy as np
+import rasterio
+from scipy.ndimage import distance_transform_edt
+
+def read(path):
+    with rasterio.open(path) as src:
+        return src.read(1)
+
+Elevation = read("Elevation.tif")
+Slope     = read("Slope.tif")
+LandCover = read("LandCover.tif")
+Streams   = read("Streams.tif")
+Trails    = read("Trails.tif")
+CELL = 5  # cell size in metres`,
+  r: `library(terra)
+
+Elevation <- rast("Elevation.tif")
+Slope     <- rast("Slope.tif")
+LandCover <- rast("LandCover.tif")
+Streams   <- rast("Streams.tif")
+Trails    <- rast("Trails.tif")`
+};
+function setupHtml(copy = true){
+  const t = SETUP[state.lang]; if (!t) return '';
+  return `<div class="critgroup">Setup: load the rasters</div>` + stepsHtml([{ tool: LANGNAME[state.lang], expr: t, out: 'rasters' }], copy);
+}
+function langNote(){
+  if (state.lang === 'py') return '<div class="codenote">Python with NumPy, SciPy and rasterio. Run the setup code (shown in the full model view) first. np.where(condition, 1, 0) gives 1 where the condition is true and 0 elsewhere. distance_transform_edt measures the distance from every nonzero cell to the nearest zero cell, so we pass ~(condition) to make the selected cells the zeros. sampling=CELL converts cells to metres.</div>';
+  if (state.lang === 'r') return '<div class="codenote">R with the terra package. Run the setup code (shown in the full model view) first. ifel(condition, 1, 0) gives 1 where the condition is true and 0 elsewhere. distance() measures the distance from every NA cell to the nearest non-NA cell, so ifel(condition, 1, NA) keeps only the selected cells. Distances are in metres for a projected raster.</div>';
+  return state.lang === 'arc'
+    ? '<div class="codenote">ArcGIS Pro: Spatial Analyst ▸ Raster Calculator (needs a Spatial Analyst license). Con(condition, 1, 0) gives 1 where the condition is true and 0 everywhere else. EucDistance(Con(condition, 1)) measures the distance from each cell to the nearest cell where the condition is true. Raster names in quotes must match the names in your Contents pane.</div>'
+    : '<div class="codenote">QGIS: Raster ▸ Raster Calculator. Comparisons return 1 (true) or 0 (false). The Raster Calculator cannot measure distance, so buffers use Raster ▸ Analysis ▸ Proximity (Raster Distance) first. "Layer@1" means band 1 of that layer.</div>';
+}
+function overlaySteps(lang){
+  const op = state.method === 'multiply' ? ' * ' : ' + ';
+  const K = state.crits.length;
+  if (lang === 'py' || lang === 'r'){
+    const as = lang === 'py' ? ' = ' : ' <- ', tool = LANGNAME[lang];
+    const steps = [{ tool, out:'sasquatch_model', expr:`sasquatch_model${as}${state.crits.map(c => c.out).join(op)}` }];
+    if (state.method === 'sum') steps.push({ tool:`${tool} (optional: keep only cells that meet all criteria)`, out:'sasquatch_all',
+      expr: lang === 'py' ? `sasquatch_all = np.where(sasquatch_model == ${K}, 1, 0)` : `sasquatch_all <- ifel(sasquatch_model == ${K}, 1, 0)` });
+    return steps;
+  }
+  const expr = state.crits.map(c => lang === 'arc' ? `"${c.out}"` : `"${c.out}@1"`).join(op);
+  const steps = [{ tool:'Raster Calculator', expr, out:'sasquatch_model' }];
+  if (state.method === 'sum'){
+    steps.push({ tool:'Raster Calculator (optional: keep only cells that meet all criteria)', out:'sasquatch_all',
+      expr: lang === 'arc' ? `Con("sasquatch_model" == ${K}, 1, 0)` : `"sasquatch_model@1" = ${K}` });
+  }
+  return steps;
+}
+function fullModelHtml(copy = true){
+  if (!state.crits.length) return '<div class="empty">Add criterion layers to see the model code.</div>';
+  return setupHtml(copy) + state.crits.map((c, k) => `<div class="critgroup">Criterion ${k+1}: ${esc(c.name)}</div>` + stepsHtml(critSteps(c.spec, c.out, state.lang), copy)).join('') +
+    `<div class="critgroup">Overlay (${state.method === 'multiply' ? 'Multiply' : 'Sum'})</div>` + stepsHtml(overlaySteps(state.lang), copy);
+}
+function renderPreviewCode(){
+  if (!state.preview) return;
+  const p = state.preview;
+  $('previewCode').innerHTML = (RAW[p.spec.layer].kind === 'cat' && !p.spec.classes.length)
+    ? '<div class="empty">Tick at least one land cover class.</div>'
+    : stepsHtml(critSteps(p.spec, p.out, state.lang));
+}
+function renderMapCode(){
+  const v = state.view, box = $('mapCode');
+  if (v.type === 'crit'){
+    const c = state.crits.find(x => x.id === v.id); if (!c){ box.style.display = 'none'; return; }
+    $('mapCodeTitle').textContent = `Code for: ${c.name}`;
+    $('mapCodeBody').innerHTML = stepsHtml(critSteps(c.spec, c.out, state.lang)) + langNote();
+  } else if (v.type === 'result'){
+    $('mapCodeTitle').textContent = 'Full model code';
+    $('mapCodeBody').innerHTML = fullModelHtml() + langNote();
+  } else { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+}
+function setLang(l){
+  state.lang = l;
+  try { localStorage.setItem('squatchLang', l); } catch (e) {}
+  document.querySelectorAll('.langSel').forEach(sel => sel.value = l);
+  renderPreviewCode(); renderMapCode();
+}
+function copyText(btn){
+  const t = btn.dataset.code;
+  const done = () => { const o = btn.textContent; btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = o, 1200); };
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t).then(done, () => fallbackCopy(t, done));
+  else fallbackCopy(t, done);
+}
+function fallbackCopy(t, done){
+  const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) {}
+  ta.remove();
+}
+
+/* ---------- overlay ---------- */
+function overlay(){
+  const active = state.crits;
+  if (!active.length) return null;
+  const out = new Uint8Array(NC);
+  for (let i = 0; i < NC; i++){
+    if (state.method === 'multiply'){ let v = 1; for (const c of active) v *= c.data[i]; out[i] = v; }
+    else { let v = 0; for (const c of active) v += c.data[i]; out[i] = v; }
+  }
+  return out;
+}
+
+/* ---------- view data ---------- */
+function viewInfo(){
+  const v = state.view;
+  if (v.type === 'raw'){
+    const L = RAW[v.key];
+    if (v.key === 'elev'){ const [a,b] = range(W.elev);
+      return { title:'Elevation', sub:'metres above sea level', color: i => elevRamp((W.elev[i]-a)/(b-a)), val: i => `${W.elev[i]} m`,
+        legend: `<span>${a.toFixed(0)} m</span><span class="gradbar" style="background:${gradCss(elevRamp)}"></span><span>${b.toFixed(0)} m</span>` }; }
+    if (v.key === 'slope'){
+      return { title:'Slope', sub:'degrees (derived from elevation)', color: i => slopeRamp(W.slope[i]/60), val: i => `${W.slope[i]}°`,
+        legend: `<span>0°</span><span class="gradbar" style="background:${gradCss(slopeRamp)}"></span><span>60°+</span>` }; }
+    if (v.key === 'lc'){
+      return { title:'Land cover', sub:'categorical classes', color: i => LC[W.lc[i]].color, val: i => `${LC[W.lc[i]].name} (${W.lc[i]+1})`,
+        legend: LC.map((c, k) => `<span><span class="swatch" style="background:${c.color}"></span> ${k+1} = ${c.name}</span>`).join('') }; }
+    return { title: L.name, sub:'1 = present, 0 = absent', color: i => W[v.key][i] ? L.color : EMPTY, val: i => W[v.key][i] ? `${L.label} (1)` : 'none (0)',
+      legend: `<span><span class="swatch" style="background:${L.color}"></span> ${L.label} = 1</span><span><span class="swatch" style="background:${EMPTY}"></span> 0</span>` };
+  }
+  const binLegend = `<span><span class="swatch" style="background:${BIN[1]}"></span> 1 = suitable</span><span><span class="swatch" style="background:${BIN[0]}"></span> 0 = not suitable</span>`;
+  if (v.type === 'preview' || v.type === 'crit'){
+    const data = v.type === 'preview' ? state.preview.data : state.crits.find(c => c.id === v.id).data;
+    const name = v.type === 'preview' ? state.preview.name : state.crits.find(c => c.id === v.id).name;
+    return { title: (v.type === 'preview' ? 'Preview: ' : 'Criterion: ') + name, sub:'1/0 criterion layer', color: i => BIN[data[i]], val: i => `${data[i]}`, legend: binLegend };
+  }
+  if (v.type === 'result'){
+    const res = overlay();
+    if (!res) return { title:'Model result', sub:'add criterion layers first', color: () => EMPTY, val: () => '—', legend:'' };
+    if (state.method === 'multiply')
+      return { title:'Model result (Multiply)', sub:'1 = meets every criterion', color: i => BIN[res[i]], val: i => `${res[i]}`, legend: binLegend };
+    const K = state.crits.length;
+    return { title:'Model result (Sum)', sub:`number of criteria met (0–${K})`, color: i => res[i] === K ? '#e0a100' : sumRamp(res[i]/K), val: i => `${res[i]} of ${K}`,
+      legend: `<span>0</span><span class="gradbar" style="background:${gradCss(sumRamp)}"></span><span>${K-1}</span><span><span class="swatch" style="background:#e0a100"></span> all ${K}</span>` };
+  }
+}
+
+/* ---------- map drawing ---------- */
+const canvas = $('map'), ctx = canvas.getContext('2d');
+let cellPx = 20, PAD = 20;
+function sizeCanvas(){
+  const wrap = $('mapwrap'); const avail = Math.min(wrap.clientWidth, 620);
+  cellPx = Math.max(10, Math.floor((avail - PAD) / N));
+  const size = PAD + cellPx * N, dpr = window.devicePixelRatio || 1;
+  canvas.width = size * dpr; canvas.height = size * dpr;
+  canvas.style.width = size + 'px'; canvas.style.height = size + 'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+function draw(){
+  if (!W) return;
+  const info = viewInfo();
+  const size = PAD + cellPx * N;
+  ctx.clearRect(0,0,size,size);
+  ctx.fillStyle = '#555'; ctx.font = `${Math.min(11, cellPx*0.55)}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (let c = 0; c < N; c++) ctx.fillText(COLS[c], PAD + c*cellPx + cellPx/2, PAD/2);
+  for (let r = 0; r < N; r++) ctx.fillText(r+1, PAD/2, PAD + r*cellPx + cellPx/2);
+  for (let i = 0; i < NC; i++){
+    const [r, c] = rc(i);
+    ctx.fillStyle = info.color(i);
+    ctx.fillRect(PAD + c*cellPx, PAD + r*cellPx, cellPx, cellPx);
+  }
+  ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let k = 0; k <= N; k++){
+    ctx.moveTo(PAD + k*cellPx + .5, PAD); ctx.lineTo(PAD + k*cellPx + .5, PAD + N*cellPx);
+    ctx.moveTo(PAD, PAD + k*cellPx + .5); ctx.lineTo(PAD + N*cellPx, PAD + k*cellPx + .5);
+  }
+  ctx.stroke();
+  // searched cells
+  for (const i of state.searched){
+    const [r, c] = rc(i), x = PAD + c*cellPx, y = PAD + r*cellPx;
+    if (i === W.squatch && state.found){
+      ctx.font = `${cellPx*0.8}px system-ui`; ctx.fillText('👣', x + cellPx/2, y + cellPx/2 + 1);
+    } else {
+      ctx.strokeStyle = '#b23a3a'; ctx.lineWidth = 2.5; ctx.beginPath();
+      ctx.moveTo(x+4, y+4); ctx.lineTo(x+cellPx-4, y+cellPx-4); ctx.moveTo(x+cellPx-4, y+4); ctx.lineTo(x+4, y+cellPx-4); ctx.stroke();
+    }
+  }
+  if (TEACHER && state.showAnswer){
+    const [r, c] = rc(W.squatch); ctx.strokeStyle = '#e0007a'; ctx.lineWidth = 3;
+    ctx.strokeRect(PAD + c*cellPx + 1.5, PAD + r*cellPx + 1.5, cellPx - 3, cellPx - 3);
+  }
+  if (state.predict >= 0){
+    const [r, c] = rc(state.predict), x = PAD + c*cellPx + cellPx/2, y = PAD + r*cellPx + cellPx/2;
+    ctx.beginPath(); ctx.arc(x, y, cellPx*0.36, 0, Math.PI*2); ctx.fillStyle = '#ffd23f'; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = '#222'; ctx.stroke();
+    ctx.fillStyle = '#222'; ctx.font = `bold ${cellPx*0.5}px system-ui`; ctx.fillText('?', x, y + 1);
+  }
+  if (state.hover >= 0){
+    const [r, c] = rc(state.hover); ctx.strokeStyle = state.searchMode ? '#c8742c' : '#111'; ctx.lineWidth = 2;
+    ctx.strokeRect(PAD + c*cellPx + 1, PAD + r*cellPx + 1, cellPx - 2, cellPx - 2);
+  }
+  $('mapTitle').textContent = info.title;
+  $('mapSub').textContent = info.sub;
+  $('legend').innerHTML = info.legend;
+}
+function cellAt(ev){
+  const rect = canvas.getBoundingClientRect();
+  const x = ev.clientX - rect.left - PAD, y = ev.clientY - rect.top - PAD;
+  const c = Math.floor(x / cellPx), r = Math.floor(y / cellPx);
+  return inside(r, c) ? r*N + c : -1;
+}
+function inspect(ev){
+  const i = cellAt(ev);
+  if (i !== state.hover){ state.hover = i; draw(); }
+  const tip = $('tip');
+  if (i < 0){ tip.style.display = 'none'; $('readout').textContent = 'Hover over a cell to inspect it.'; return; }
+  const info = viewInfo();
+  const txt = `<b>${cellName(i)}</b> · this layer: <b>${info.val(i)}</b><br>Elev ${W.elev[i]} m · Slope ${W.slope[i]}° · ${LC[W.lc[i]].name} (${W.lc[i]+1})${W.stream[i] ? ' · Stream' : ''}${W.trail[i] ? ' · Trail' : ''}`;
+  tip.innerHTML = txt; tip.style.display = 'block';
+  const wrapRect = $('mapwrap').getBoundingClientRect();
+  let left = ev.clientX - wrapRect.left + 14, top = ev.clientY - wrapRect.top + 14;
+  if (left + tip.offsetWidth > wrapRect.width) left = ev.clientX - wrapRect.left - tip.offsetWidth - 10;
+  tip.style.left = left + 'px'; tip.style.top = top + 'px';
+  $('readout').innerHTML = `Cell <b>${cellName(i)}</b>: Elevation ${W.elev[i]} m · Slope ${W.slope[i]}° · Land cover ${W.lc[i]+1} (${LC[W.lc[i]].name}) · Stream: ${W.stream[i] ? 'yes' : 'no'} · Trail: ${W.trail[i] ? 'yes' : 'no'}`;
+}
+canvas.addEventListener('mousemove', inspect);
+canvas.addEventListener('mouseleave', () => { state.hover = -1; $('tip').style.display = 'none'; draw(); });
+canvas.addEventListener('click', ev => {
+  const i = cellAt(ev); if (i < 0) return;
+  if (state.predictMode) setPrediction(i); else if (state.searchMode) doSearch(i); else inspect(ev);
+});
+
+/* ---------- views & panels ---------- */
+function setView(v){ state.view = v; renderLayerBtns(); renderCritList(); draw(); renderMapCode(); }
+function renderLayerBtns(){
+  $('layerBtns').innerHTML = Object.entries(RAW).map(([k, L]) =>
+    `<button data-k="${k}" class="${state.view.type === 'raw' && state.view.key === k ? 'active' : ''}">${L.ico} ${L.name}</button>`).join('');
+  $('layerBtns').querySelectorAll('button').forEach(b => b.onclick = () => setView({ type:'raw', key:b.dataset.k }));
+}
+function renderGuide(){
+  $('guideList').innerHTML = W.rules.map(r => `<li><span class="ico">${r.ico}</span><span>${r.text}</span></li>`).join('');
+}
+function renderCond(){
+  const L = RAW[$('inLayer').value];
+  let h = '';
+  if (L.kind === 'cont'){
+    const def = $('inLayer').value === 'elev' ? Math.round(range(W.elev)[0] + 10) : 20;
+    h = `<label class="row">${L.name} <select id="condOp"><option value=">">&gt;</option><option value=">=">≥</option><option value="<">&lt;</option><option value="<=">≤</option></select>
+         <input type="number" id="condVal" value="${def}" step="1"> ${L.unit}</label>`;
+  } else if (L.kind === 'cat'){
+    h = LC.map((c, k) => `<label class="row"><input type="checkbox" class="lcClass" value="${k}"> <span class="swatch" style="background:${c.color}"></span> ${k+1} = ${c.name}</label>`).join('');
+  } else {
+    h = `<div class="note">${L.label} cells = 1, all other cells = 0.</div>`;
+  }
+  $('condBox').innerHTML = h;
+  $('condBox').querySelectorAll('input,select').forEach(e => e.addEventListener('input', updatePreview));
+  updatePreview();
+}
+function updatePreview(){
+  const spec = readSpec();
+  const data = computeCrit(spec);
+  let n = 0; for (const v of data) n += v;
+  state.preview = { spec, data, name: critName(spec) };
+  $('previewCount').innerHTML = `Preview: <b>${n}</b> of ${NC} cells get a 1.`;
+  state.preview.out = uniqueOut(outName(spec));
+  renderPreviewCode();
+  setView({ type:'preview' });
+}
+function renderCritList(){
+  const list = $('critList');
+  if (!state.crits.length){ list.innerHTML = '<div class="empty">No criterion layers yet. Make some above.</div>'; }
+  else list.innerHTML = state.crits.map(c => {
+    let n = 0; for (const v of c.data) n += v;
+    const act = state.view.type === 'crit' && state.view.id === c.id ? 'active' : '';
+    return `<div class="item ${act}" data-id="${c.id}"><span class="swatch" style="background:${BIN[1]}"></span><span class="nm">${c.name}</span><span class="n">${n} cells</span><button title="Remove" data-del="${c.id}">✕</button></div>`;
+  }).join('');
+  list.querySelectorAll('.item').forEach(el => el.onclick = ev => {
+    if (ev.target.dataset.del){ state.crits = state.crits.filter(c => c.id !== +ev.target.dataset.del); if (state.view.type === 'crit') state.view = { type:'result' }; updateResult(); return; }
+    setView({ type:'crit', id: +el.dataset.id });
+  });
+  // formula
+  const join = state.method === 'multiply' ? ' × ' : ' + ';
+  $('formula').textContent = state.crits.length ? 'Result = ' + state.crits.map(c => '[' + c.name + ']').join(join) : 'Result = (add criterion layers)';
+}
+function updateResult(){
+  renderCritList();
+  const res = overlay(), st = $('resultStatus');
+  st.className = 'status';
+  if (!res){ st.textContent = ''; draw(); renderMapCode(); return; }
+  if (state.method === 'multiply'){
+    let n = 0; for (const v of res) n += v;
+    if (n === 0){ st.textContent = 'No cells meet all of your criteria. Is one of them too strict?'; st.classList.add('bad'); }
+    else if (n === 1){ st.textContent = `Exactly 1 cell meets all ${state.crits.length} criteria. Time to search!`; st.classList.add('good'); }
+    else st.textContent = `${n} cells meet all ${state.crits.length} criteria. Narrow it down further.`;
+  } else {
+    const K = state.crits.length; let n = 0; for (const v of res) if (v === K) n++;
+    st.textContent = `${n} cell${n === 1 ? '' : 's'} meet${n === 1 ? 's' : ''} all ${K} criteria (shown in gold).`;
+    if (n === 1) st.classList.add('good');
+  }
+  draw(); renderMapCode();
+}
+
+/* ---------- prediction ---------- */
+function setPredictMode(on){
+  state.predictMode = on; canvas.classList.toggle('predicting', on);
+  $('predictBtn').textContent = on ? '✋ Cancel' : (state.predict >= 0 ? '📍 Change my prediction' : '📍 Pick a cell');
+  if (on){ if (state.searchMode) setSearchMode(false); $('predictInfo').textContent = 'Click the cell where you think the sasquatch lives.'; }
+  else renderPredict();
+}
+function setPrediction(i){ state.predict = i; setPredictMode(false); draw(); }
+function renderPredict(){
+  const locked = state.crits.length > 0 && state.predict >= 0;
+  $('predictBtn').disabled = locked;
+  $('predictBtn').textContent = state.predict >= 0 ? '📍 Change my prediction' : '📍 Pick a cell';
+  $('predictInfo').innerHTML = state.predict < 0 ? 'No prediction yet.'
+    : `Your prediction: <b>${cellName(state.predict)}</b> (yellow ? on the map)${locked ? '. Locked in now that you have started your model.' : ''}`;
+  $('predictWhy').disabled = locked;
+  $('needPredict').style.display = state.predict >= 0 ? 'none' : 'block';
+}
+function predictSummary(){
+  if (state.predict < 0) return '';
+  const i = state.predict, [r1, c1] = rc(i), [r2, c2] = rc(W.squatch);
+  const d = Math.round(Math.hypot(r1-r2, c1-c2) * CELL * 10) / 10;
+  const met = W.rules.filter(r => r.test(i)).length, why = $('predictWhy').value.trim();
+  return `<div style="margin-top:6px"><b>Your prediction:</b> ${cellName(i)}${i === W.squatch ? ' 🎯 Spot on!' : `, ${d} m from the sasquatch, meeting ${met} of ${W.rules.length} clues`}</div>` +
+    (why ? `<div><b>Your reasoning:</b> ${esc(why)}</div>` : '');
+}
+
+/* ---------- search ---------- */
+const MISSES = ['Nothing here but ferns.', 'Just a very confused deer.', 'You found… half a granola bar.', 'Some huge footprints! Oh wait, those are yours.',
+  'A chipmunk stares at you judgmentally.', 'Lots of moss. No squatch.', 'A suspicious tuft of hair… from your own hat.'];
+function renderDots(){ $('dots').textContent = '🔦'.repeat(state.searchesLeft) + '·'.repeat(3 - state.searchesLeft); }
+function setSearchMode(on){
+  if (on) setPredictMode(false);
+  state.searchMode = on; canvas.classList.toggle('search', on);
+  $('searchBtn').textContent = on ? '✋ Cancel search' : '🔦 Search a cell';
+  if (on){ $('searchMsg').style.display = 'block'; $('searchMsg').innerHTML = 'Click a cell on the map to search it.'; }
+}
+function doSearch(i){
+  if (state.found || state.searchesLeft <= 0 || state.searched.includes(i)) return;
+  state.searched.push(i); state.searchesLeft--; state.searchesUsed++;
+  setSearchMode(false); renderDots();
+  if (i === W.squatch){ state.found = true; draw(); showWin(); return; }
+  const fails = W.rules.filter(r => !r.test(i)).map(r => `<li>${r.ico} ${r.fail(i)}</li>`).join('');
+  $('searchMsg').style.display = 'block';
+  $('searchMsg').innerHTML = `<b>${cellName(i)}:</b> ${MISSES[Math.floor(Math.random()*MISSES.length)]}<br><span class="note">Your search party says this cell doesn't fit the field guide:</span><ul>${fails}</ul>`;
+  draw();
+  if (state.searchesLeft === 0){ $('searchBtn').disabled = true; $('refill').style.display = 'inline-block'; $('outModal').classList.add('show'); }
+}
+function showWin(){
+  const res = overlay();
+  let modelTxt = '<i>No model was used. Lucky guess!</i>';
+  if (state.crits.length) modelTxt = '<ol style="margin:4px 0 0;padding-left:20px">' + state.crits.map(c => `<li>${c.name}</li>`).join('') + '</ol>' +
+    `<div style="margin-top:4px">Overlay method: <b>${state.method === 'multiply' ? 'Multiply' : 'Sum'}</b></div>` +
+    `<div style="margin-top:8px"><b>Model code (${LANGNAME[state.lang]}):</b></div>` + fullModelHtml(false);
+  $('winSummary').innerHTML = `<div><b>Forest #${state.mapNo}</b> · sasquatch found in cell <b>${cellName(W.squatch)}</b></div>
+    <div>Total searches used: <b>${state.searchesUsed}</b></div>${predictSummary()}<div style="margin-top:6px"><b>Your model:</b>${modelTxt}</div>`;
+  $('winModal').classList.add('show');
+  $('searchMsg').innerHTML = `🎉 Found in <b>${cellName(W.squatch)}</b> after ${state.searchesUsed} search${state.searchesUsed === 1 ? '' : 'es'}!`;
+  $('searchBtn').disabled = true;
+}
+
+/* ---------- setup ---------- */
+function loadMap(mapNo){
+  mapNo = Math.max(1, Math.floor(mapNo) || 1);
+  W = buildWorld(mapNo);
+  if (!W){ alert('Could not build that forest. Try another number.'); return; }
+  Object.assign(state, { mapNo, crits: [], method:'multiply', searchesLeft: 3, searchesUsed: 0, searched: [], searchMode:false, found:false, showAnswer:false, predict:-1, predictMode:false });
+  $('predictWhy').value = ''; renderPredict();
+  document.querySelector('input[name=method][value=multiply]').checked = true;
+  $('mapInput').value = mapNo;
+  const u = new URL(location); u.searchParams.set('map', mapNo); history.replaceState(null, '', u);
+  $('searchBtn').disabled = false; $('refill').style.display = 'none'; $('searchMsg').style.display = 'none';
+  renderGuide(); renderDots(); renderCritList(); $('resultStatus').textContent = '';
+  if (TEACHER){
+    $('teacherCard').style.display = 'block';
+    $('teacherInfo').innerHTML = `Sasquatch is in cell <b>${cellName(W.squatch)}</b>. <label class="row"><input type="checkbox" id="showAns"> Outline it on the map</label>`;
+    $('showAns').onchange = e => { state.showAnswer = e.target.checked; draw(); };
+  }
+  $('inLayer').value = 'elev';
+  document.querySelector('input[name=prox][value=none]').checked = true;
+  renderCond();
+  setView({ type:'raw', key:'elev' });
+}
+function init(){
+  $('inLayer').innerHTML = Object.entries(RAW).map(([k, L]) => `<option value="${k}">${L.ico} ${L.name}</option>`).join('');
+  $('inLayer').onchange = () => { document.querySelector('input[name=prox][value=none]').checked = true; renderCond(); };
+  document.querySelectorAll('input[name=prox]').forEach(e => e.addEventListener('change', updatePreview));
+  ['dWithin','dBeyond'].forEach(id => $(id).addEventListener('input', () => {
+    document.querySelector(`input[name=prox][value=${id === 'dWithin' ? 'within' : 'beyond'}]`).checked = true; updatePreview(); }));
+  $('addCrit').onclick = () => {
+    if (state.predict < 0){ alert('Make your prediction first: pick the cell where you think the sasquatch lives (step 1).'); return; }
+    const spec = readSpec();
+    if (RAW[spec.layer].kind === 'cat' && !spec.classes.length){ alert('Tick at least one land cover class.'); return; }
+    const c = { id: state.nextId++, spec, data: computeCrit(spec), name: critName(spec), out: uniqueOut(outName(spec)) };
+    state.crits.push(c); state.view = { type:'crit', id:c.id }; updateResult(); renderPredict();
+  };
+  document.querySelectorAll('input[name=method]').forEach(e => e.addEventListener('change', () => { state.method = e.value; state.view = { type:'result' }; updateResult(); }));
+  $('viewResult').onclick = () => { state.view = { type:'result' }; updateResult(); };
+  $('predictBtn').onclick = () => setPredictMode(!state.predictMode);
+  $('searchBtn').onclick = () => { setSearchMode(!state.searchMode); if (state.searchMode) canvas.scrollIntoView({ block:'nearest', behavior:'smooth' }); };
+  document.querySelectorAll('.langSel').forEach(sel => { sel.value = state.lang; sel.addEventListener('change', () => setLang(sel.value)); });
+  document.addEventListener('click', ev => { const b = ev.target.closest('button.copy'); if (b) copyText(b); });
+  $('refill').onclick = () => { state.searchesLeft = 3; renderDots(); $('searchBtn').disabled = false; $('refill').style.display = 'none'; };
+  $('newMap').onclick = () => loadMap(1 + Math.floor(Math.random() * 99999));
+  $('goMap').onclick = () => loadMap(+$('mapInput').value);
+  $('mapInput').addEventListener('keydown', e => { if (e.key === 'Enter') loadMap(+$('mapInput').value); });
+  $('helpBtn').onclick = () => $('introModal').classList.add('show');
+  $('startBtn').onclick = () => $('introModal').classList.remove('show');
+  $('outOk').onclick = () => $('outModal').classList.remove('show');
+  $('winOk').onclick = () => $('winModal').classList.remove('show');
+  $('loadSolution').onclick = () => {
+    const sols = W.rules.map(r => r.spec);
+    state.crits = [];
+    for (const spec of sols) state.crits.push({ id: state.nextId++, spec, data: computeCrit(spec), name: critName(spec), out: uniqueOut(outName(spec)) });
+    state.view = { type:'result' }; updateResult();
+  };
+  window.addEventListener('resize', sizeCanvas);
+  const m = parseInt(params.get('map'));
+  loadMap(isNaN(m) ? 1 + Math.floor(Math.random() * 99999) : m);
+  sizeCanvas();
+  $('introModal').classList.add('show');
+}
+init();
+</script>
+</body>
+</html>
